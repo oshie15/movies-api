@@ -52,3 +52,33 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 	// Check the sort parameter matches a value in the safelist
 	v.Check(validator.PermittedValue(f.Sort, f.SortSafelist...), "sort", "invalid sort value")
 }
+
+// Define a new Metadata struct for holding the pagination metadata.
+type Metadata struct {
+	CurrentPage  int `json:"current_page, omitzero"`
+	PageSize     int `json:"page_size, omitzero"`
+	FirstPage    int `json:"first_page, omitzero"`
+	LastPage     int `json:"last_page, omitzero"`
+	TotalRecords int `json:"total_records, omitzero"`
+}
+
+// The calculateMetadata() function calculates the appropriate pagination metadata
+// values given the total number of records, current page, and page size values. Note
+// that when the last page values is calculated we are dividing two int values, and
+// when dviding integer types in Go the result will also be an integer type, with
+// the modules dropped. So, for example, if there were 12 records in total and a page
+// size of 5, the last page value would be (12+5-1)/5 = 3.2, which is then truncated to 3 by Go
+func calculateMetadata(TotalRecords, page, pageSize int) Metadata {
+	if TotalRecords == 0 {
+		// Note that we return an empty Metaadata struct if there are no records/
+		return Metadata{}
+	}
+
+	return Metadata{
+		CurrentPage:  page,
+		PageSize:     pageSize,
+		FirstPage:    1,
+		LastPage:     (TotalRecords + pageSize - 1) / pageSize,
+		TotalRecords: TotalRecords,
+	}
+}
