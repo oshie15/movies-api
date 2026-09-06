@@ -52,7 +52,7 @@ func main() {
 	// Declare an instance of the config struct
 	var cfg config
 
-	flag.IntVar(&cfg.port, "port", 4001, "API server port")
+	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development | staging | production )")
 
 	// Read DSN value from the db-dsn command-line flag into the config struct.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -138,23 +139,36 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 // Create a new GetAll method which returns a slice of movies. Although we are not using
 // them right now, we set this up to accept the various filter parameters as arguments.
 func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, error) {
+	// Update the SQL query to include the LIMIT and OFFSET clauses with placeholder
+	// parameter values/
 	// Construct the SQL query to retreieve all movie records.
 	// Use full-text seach for the title filter.
-	query := `
+	// Add an ORDER BY clause and interpolate the sort column and direction. Importantly
+	// notice that we also include a secondary sort on the movie ID TO to ensure a consistent ordering.
+	query := fmt.Sprintf(`
 		SELECT id, created_at, title, year, runtime, genres, version 
 		FROM movies
 		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
 		AND (genres @> $2 OR $2 = '{}')
-		ORDER BY id`
+		ORDER BY %s %s, id ASC
+		LIMIT $3 OFFSET $4`, filters.sortColumn(), filters.sortDirection())
 
 	// Create a context with a 3 second timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
+	// As our SQL query now has quite a few placeholder parameters, let us collect the
+	// values for the placeholder in a slice. Notice here how we call the limit() and
+	// offset() methods on the Filters struct to get the appropriate values for the
+	// LIMIT and OFFSET clauses.
+	args := []any{title, pq.Array(genres), filters.limit(), filters.offset()}
+
+	// And then pass the args slice to QueryContext() as variadic parameter.
+
 	// Use QueryContext() to execute the query. This returns a sql.Rows resultset
 	// containing the result.
 	// Pass the title and genres as the placeholder parameter values.
-	rows, err := m.DB.QueryContext(ctx, query, title, pq.Array(genres))
+	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
