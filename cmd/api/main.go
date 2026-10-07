@@ -111,6 +111,7 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
+
 }
 
 // The openDB() function return a sql.DB connection pool.
