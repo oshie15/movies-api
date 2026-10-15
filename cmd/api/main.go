@@ -13,6 +13,7 @@ import (
 	// Go compiler complaining that the package isn't being used/
 	_ "github.com/lib/pq"
 	"greenlight.oshie.net/internal/data"
+	"greenlight.oshie.net/internal/mailer"
 )
 
 const version = "1.0.0"
@@ -41,6 +42,13 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 // Define an application struct to hold the dependencies for our HTTP handlers, helpers,
@@ -50,6 +58,7 @@ type application struct {
 	config config
 	logger *slog.Logger
 	models data.Models
+	mailer *mailer.Mailer
 }
 
 func main() {
@@ -76,6 +85,16 @@ func main() {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
+	// Read the SMTP server configuration settings into the config struct, using
+	// Mailtrap settings as the default values. IMPORTANT: if you are following along
+	// make sure to replace the default values for smtp-username and smtp-password
+	// with your own Mailtrap creadentials.
+	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "929c16e8954c55", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "71d93b3c33badf", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.com>", "SMTP sender")
+
 	flag.Parse()
 
 	// Initialize a new structured logger which writes log entries to the standard out stream.
@@ -94,15 +113,24 @@ func main() {
 	// main() function exits.
 	defer db.Close()
 
+	// Initialize a new Mailer instance using settings from the command line flags
+	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 	// Also log a message to say that the connection pool has been successfully established.
 	logger.Info("database connection pool established")
 	// Declare an instance of the application struct, containing the config struct and the logger.
 	// Use the data.NewModels() function to initialize a Models struct, passing in the
-	// connection pool as a parameter
+	// connection pool as a parameter.
+
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer,
 	}
 
 	// Call app.serve() to start tthe server
